@@ -14,9 +14,10 @@ public class UsuarioPersistence implements UsuarioRepository {
 
     @Override
     public void salvar(Usuario usuario) {
+        // [CORREÇÃO OBJECT STORAGE]: Adicionada a coluna FOTO_PERFIL também no INSERT
         String sql = """
-                INSERT INTO USUARIO (EMAIL, SENHA, NOME, TIPO, ID_ENDERECO)
-                VALUES (?, ?, ?, ?::tipo_usuario, ?)
+                INSERT INTO USUARIO (EMAIL, SENHA, NOME, TIPO, ID_ENDERECO, FOTO_PERFIL)
+                VALUES (?, ?, ?, ?::tipo_usuario, ?, ?)
                 """;
 
         try (Connection conn = DatabaseConfig.getConnection();
@@ -30,6 +31,8 @@ public class UsuarioPersistence implements UsuarioRepository {
             stmt.setString(3, usuario.getNome());
             stmt.setString(4, usuario.getTipoUsuario().name());
             stmt.setLong(5, usuario.getEndereco().getId());
+            // [CORREÇÃO OBJECT STORAGE]: Salva foto_perfil (ou null) no cadastro inicial
+            stmt.setString(6, usuario.getFotoPerfil());
             String tipo = usuario.getTipoUsuario().name();
 
             stmt.executeUpdate();
@@ -82,9 +85,10 @@ public class UsuarioPersistence implements UsuarioRepository {
 
     @Override
     public void atualizar(Usuario usuario) {
+        // 1. Adicionada a coluna foto_perfil = ? antes do WHERE
         String sql = """
             UPDATE usuario
-            SET email = ?, senha = ?, nome = ?, tipo = ?::tipo_usuario, id_endereco = ?
+            SET email = ?, senha = ?, nome = ?, tipo = ?::tipo_usuario, id_endereco = ?, foto_perfil = ?
             WHERE id = ?
         """;
 
@@ -116,7 +120,12 @@ public class UsuarioPersistence implements UsuarioRepository {
                 stmtUsuario.setString(3, usuario.getNome());
                 stmtUsuario.setString(4, usuario.getTipoUsuario().name());
                 stmtUsuario.setLong(5, usuario.getEndereco().getId());
-                stmtUsuario.setLong(6, usuario.getId());
+                
+                // 2. Passar o valor da foto no parâmetro 6
+                stmtUsuario.setString(6, usuario.getFotoPerfil()); 
+                
+                // 3. O ID do utilizador passa a ser o parâmetro 7
+                stmtUsuario.setLong(7, usuario.getId());
 
                 stmtUsuario.executeUpdate();
             }
@@ -154,7 +163,6 @@ public class UsuarioPersistence implements UsuarioRepository {
             throw new RuntimeException("Erro ao atualizar usuário", e);
         }
     }
-
     @Override
     public void remover(Long id) {
         String sql = "DELETE FROM usuario WHERE id = ?";
@@ -172,6 +180,7 @@ public class UsuarioPersistence implements UsuarioRepository {
 
     @Override
     public Optional<Usuario> buscarPorId(Long id) {
+        // [CORREÇÃO OBJECT STORAGE]: Incluído u.foto_perfil no SELECT (antes não era buscado e voltava null)
         String sql = """
     SELECT 
         u.id,
@@ -179,6 +188,7 @@ public class UsuarioPersistence implements UsuarioRepository {
         u.senha,
         u.nome,
         u.tipo,
+        u.foto_perfil,
 
         e.id AS endereco_id,
         e.cep,
@@ -250,6 +260,8 @@ public class UsuarioPersistence implements UsuarioRepository {
             usuario.setSenha(rs.getString("senha"));
             usuario.setNome(rs.getString("nome"));
             usuario.setTipoUsuario(TipoUsuario.valueOf(tipo));
+            // [CORREÇÃO OBJECT STORAGE]: Preenche o atributo fotoPerfil a partir do ResultSet
+            usuario.setFotoPerfil(rs.getString("foto_perfil"));
 
             Endereco endereco = new Endereco();
             endereco.setId(rs.getLong("endereco_id"));
@@ -298,6 +310,7 @@ public class UsuarioPersistence implements UsuarioRepository {
 
     @Override
     public List<Usuario> listarTodos() {
+        // [CORREÇÃO OBJECT STORAGE]: Incluído u.foto_perfil no SELECT
         String sql = """
     SELECT 
         u.id,
@@ -305,6 +318,7 @@ public class UsuarioPersistence implements UsuarioRepository {
         u.senha,
         u.nome,
         u.tipo,
+        u.foto_perfil,
 
         e.id AS endereco_id,
         e.cep,
@@ -368,6 +382,8 @@ public class UsuarioPersistence implements UsuarioRepository {
                 usuario.setSenha(rs.getString("senha"));
                 usuario.setNome(rs.getString("nome"));
                 usuario.setTipoUsuario(TipoUsuario.valueOf(tipoStr));
+                // [CORREÇÃO OBJECT STORAGE]: Preenche o atributo fotoPerfil
+                usuario.setFotoPerfil(rs.getString("foto_perfil"));
 
                 Endereco endereco = new Endereco();
                 endereco.setId(rs.getLong("endereco_id"));
@@ -395,6 +411,7 @@ public class UsuarioPersistence implements UsuarioRepository {
     @Override
     public Optional<Usuario> buscarPorEmail(String email) {
 
+        // [CORREÇÃO OBJECT STORAGE]: Incluído u.foto_perfil no SELECT de autenticação/busca por email
         String sql = """
     SELECT 
         u.id,
@@ -402,6 +419,7 @@ public class UsuarioPersistence implements UsuarioRepository {
         u.senha,
         u.nome,
         u.tipo,
+        u.foto_perfil,
 
         e.id AS endereco_id,
         e.cep,
@@ -465,6 +483,8 @@ public class UsuarioPersistence implements UsuarioRepository {
             usuario.setSenha(rs.getString("senha"));
             usuario.setNome(rs.getString("nome"));
             usuario.setTipoUsuario(TipoUsuario.valueOf(tipoStr));
+            // [CORREÇÃO OBJECT STORAGE]: Preenche o atributo fotoPerfil
+            usuario.setFotoPerfil(rs.getString("foto_perfil"));
 
             Endereco endereco = new Endereco();
             endereco.setId(rs.getLong("endereco_id"));
@@ -488,6 +508,7 @@ public class UsuarioPersistence implements UsuarioRepository {
     @Override
     public List<Negocio> listarTodosLavaJatos() {
 
+        // [CORREÇÃO OBJECT STORAGE]: Incluído u.foto_perfil no SELECT dos lava-jatos
         String sql = """
         SELECT
             u.id AS usuario_id,
@@ -501,6 +522,7 @@ public class UsuarioPersistence implements UsuarioRepository {
         
             u.nome,
             u.email,
+            u.foto_perfil,
         
             e.id AS endereco_id,
             e.cep,
@@ -533,6 +555,8 @@ public class UsuarioPersistence implements UsuarioRepository {
 
                 lavajato.setNome(rs.getString("nome"));
                 lavajato.setEmail(rs.getString("email"));
+                // [CORREÇÃO OBJECT STORAGE]: Preenche a foto de perfil do lava-jato para exibição nos cards
+                lavajato.setFotoPerfil(rs.getString("foto_perfil"));
                 lavajato.setCnpj(rs.getString("cnpj"));
                 lavajato.setRazaoSocial(rs.getString("razao_social"));
 

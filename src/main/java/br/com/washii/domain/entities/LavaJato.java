@@ -90,6 +90,9 @@ public class LavaJato extends Negocio {
         this.servicosOferecidos.add(servico);
     }
 
+    // [CORREÇÃO OBJECT STORAGE]: Removido atributo fotoPerfil duplicado da subclasse,
+    // pois já existe e é herdado diretamente da superclasse Usuario (evitando sombreamento de atributo)
+
     public boolean removeServicosOferecidos(Servico servico){
         return this.servicosOferecidos.remove(servico);
     }

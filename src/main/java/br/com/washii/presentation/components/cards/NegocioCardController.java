@@ -11,6 +11,7 @@ import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.VBox;
 
@@ -52,6 +53,16 @@ public class NegocioCardController extends BaseController{
         this.lavaJato = lj;
 
         lblNome.setText(lj.getNome());
+
+        // [CORREÇÃO OBJECT STORAGE]: Carrega a logo do lava-jato salva no Supabase Storage (em background)
+        if (lj.getFotoPerfil() != null && !lj.getFotoPerfil().isBlank()) {
+            try {
+                Image logoRemota = new Image(lj.getFotoPerfil(), true);
+                imgLogo.setImage(logoRemota);
+            } catch (Exception e) {
+                System.err.println("Erro ao carregar logo do negócio no card: " + e.getMessage());
+            }
+        }
 
         Endereco endereco = lj.getEndereco();
         lblEndereco.setText(endereco.getRua() + ", " + endereco.getNumero() + "\n" + endereco.getCidade() + "\n" + endereco.getEstado());

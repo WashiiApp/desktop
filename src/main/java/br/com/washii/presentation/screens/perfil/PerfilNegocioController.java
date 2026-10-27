@@ -20,6 +20,7 @@ import br.com.washii.domain.entities.Usuario;
 import br.com.washii.domain.exceptions.NegocioException;
 import br.com.washii.infra.session.Sessao;
 import br.com.washii.presentation.utils.AvisoUtils;
+import br.com.washii.service.SupabaseStorageService;
 import br.com.washii.service.UsuarioService;
 import java.io.File;
 import java.time.LocalTime;
@@ -45,6 +46,9 @@ public class PerfilNegocioController {
     private List<TextField> todosCampos;
     private boolean modoEdicao = false;
     private Usuario usuarioLogado;
+
+    // [CORREÇÃO OBJECT STORAGE]: Guarda o arquivo de imagem selecionado para envio ao Supabase ao salvar
+    private File arquivoFotoSelecionada;
 
     public PerfilNegocioController(UsuarioService usuarioService){
         this.usuarioService = usuarioService;
@@ -83,6 +87,8 @@ public class PerfilNegocioController {
 
     @FXML
     void handleCancelarEdicao(ActionEvent event) {
+        // [CORREÇÃO OBJECT STORAGE]: Limpa a foto selecionada se o usuário cancelar a edição
+        this.arquivoFotoSelecionada = null;
         carregarDados(buscarUsuarioLogado());
         configurarModoEdicao(false);
         modoEdicao = false;
@@ -106,6 +112,8 @@ public class PerfilNegocioController {
         if (arquivo != null) {
             Image imagem = new Image(arquivo.toURI().toString());
             circleFoto.setFill(new ImagePattern(imagem));
+            // [CORREÇÃO OBJECT STORAGE]: Armazena o arquivo selecionado para realizar o upload ao salvar
+            this.arquivoFotoSelecionada = arquivo;
         }
     }
 
@@ -160,14 +168,26 @@ public class PerfilNegocioController {
             txtCnpj.setText(negocio.getCnpj());
             txtRazaoSocial.setText(negocio.getRazaoSocial());
 
-            // tentar carregar a foto
-            try {
-                Image img = new Image(getClass().getResourceAsStream("/br/com/washii/assets/images/perfil/profile-placeholder.png")); // true para carregar em background
-                circleFoto.setFill(new ImagePattern(img));
-            } catch (Exception e) {
-                System.err.println("Erro ao carregar imagem: " + e.getMessage());
+            // [CORREÇÃO OBJECT STORAGE]: Carrega a foto do Supabase se existir URL salva;
+            // caso contrário, exibe a imagem padrão (profile-placeholder.png)
+            carregarFotoPerfil(negocio.getFotoPerfil());
+        }
+    }
+
+    // [CORREÇÃO OBJECT STORAGE]: Método auxiliar para carregar a imagem do Supabase ou o placeholder padrão
+    private void carregarFotoPerfil(String urlFoto) {
+        try {
+            if (urlFoto != null && !urlFoto.isBlank()) {
+                Image imgRemota = new Image(urlFoto, false);
+                if (!imgRemota.isError()) {
+                    circleFoto.setFill(new ImagePattern(imgRemota));
+                    return;
+                }
             }
-            
+            Image imgPlaceholder = new Image(getClass().getResourceAsStream("/br/com/washii/assets/images/perfil/profile-placeholder.png"));
+            circleFoto.setFill(new ImagePattern(imgPlaceholder));
+        } catch (Exception e) {
+            System.err.println("Erro ao carregar imagem: " + e.getMessage());
         }
     }
 
@@ -201,9 +221,20 @@ public class PerfilNegocioController {
                 negocio.getEndereco().setEstado(txtEstado.getText());
             }
 
+            // [CORREÇÃO OBJECT STORAGE]: Envia a foto selecionada para o Supabase Storage
+            // e atualiza a URL no objeto Negocio antes de persistir no banco
+            if (arquivoFotoSelecionada != null) {
+                String idUsuario = String.valueOf(negocio.getId());
+                String urlFoto = SupabaseStorageService.fazerUpload(arquivoFotoSelecionada.toPath(), idUsuario);
+                negocio.setFotoPerfil(urlFoto);
+                arquivoFotoSelecionada = null;
+            }
+
             usuarioService.atualizarUsuario(negocio);
 
             this.usuarioLogado = negocio;
+            // [CORREÇÃO OBJECT STORAGE]: Mantém o usuário da Sessão sincronizado
+            Sessao.getInstance().iniciarSessao(negocio);
             
             AvisoUtils.exibirAvisoSucesso(containerAviso, "Usuario atualizado com sucesso!");
             return true;

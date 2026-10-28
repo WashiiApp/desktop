@@ -19,6 +19,7 @@ import br.com.washii.domain.entities.Usuario;
 import br.com.washii.domain.exceptions.NegocioException;
 import br.com.washii.infra.session.Sessao;
 import br.com.washii.presentation.utils.AvisoUtils;
+import br.com.washii.service.SupabaseStorageService;
 import br.com.washii.service.UsuarioService;
 
 import java.io.File;
@@ -46,6 +47,10 @@ public class PerfilClienteController {
 
     private List<TextField> todosCampos;
     private boolean modoEdicao = false;
+
+    // [CORREÇÃO OBJECT STORAGE]: Guarda o arquivo de foto selecionado temporariamente
+    // para que o upload ocorra junto ao salvar (e possa ser descartado se clicar em Cancelar)
+    private File arquivoFotoSelecionada;
 
     public PerfilClienteController(UsuarioService usuarioService) {
         this.usuarioService = usuarioService;
@@ -77,6 +82,8 @@ public class PerfilClienteController {
 
     @FXML
     void handleCancelarEdicao(ActionEvent event) {
+        // [CORREÇÃO OBJECT STORAGE]: Descarta a foto selecionada caso o usuário cancele a edição
+        this.arquivoFotoSelecionada = null;
         carregarDados();
         configurarEstado(false);
         modoEdicao = false;
@@ -94,8 +101,11 @@ public class PerfilClienteController {
 
         File arquivo = fileChooser.showOpenDialog(circleFoto.getScene().getWindow());
         if (arquivo != null) {
+            // [CORREÇÃO OBJECT STORAGE]: Exibe o preview da foto selecionada instantaneamente
+            // e armazena a referência do arquivo para enviar ao Supabase ao clicar em "Salvar"
             Image imagem = new Image(arquivo.toURI().toString());
             circleFoto.setFill(new ImagePattern(imagem));
+            this.arquivoFotoSelecionada = arquivo;
         }
     }
 
@@ -139,12 +149,26 @@ public class PerfilClienteController {
                 txtNumero.setText(cliente.getEndereco().getNumero());
             }
 
-            try {
-                Image img = new Image(getClass().getResourceAsStream("/br/com/washii/assets/images/perfil/profile-placeholder.png"));
-                circleFoto.setFill(new ImagePattern(img));
-            } catch (Exception e) {
-                System.err.println("Erro ao carregar imagem: " + e.getMessage());
+            // [CORREÇÃO OBJECT STORAGE]: Verifica se o cliente possui URL de foto no Supabase;
+            // se tiver, carrega da URL pública; caso contrário (ou em caso de falha), usa o placeholder local
+            carregarFotoPerfil(cliente.getFotoPerfil());
+        }
+    }
+
+    // [CORREÇÃO OBJECT STORAGE]: Método auxiliar para carregar a imagem do Supabase ou o placeholder padrão
+    private void carregarFotoPerfil(String urlFoto) {
+        try {
+            if (urlFoto != null && !urlFoto.isBlank()) {
+                Image imgRemota = new Image(urlFoto, false);
+                if (!imgRemota.isError()) {
+                    circleFoto.setFill(new ImagePattern(imgRemota));
+                    return;
+                }
             }
+            Image placeholder = new Image(getClass().getResourceAsStream("/br/com/washii/assets/images/perfil/profile-placeholder.png"));
+            circleFoto.setFill(new ImagePattern(placeholder));
+        } catch (Exception e) {
+            System.err.println("Erro ao carregar imagem: " + e.getMessage());
         }
     }
 
@@ -166,7 +190,19 @@ public class PerfilClienteController {
                 cliente.getEndereco().setNumero(txtNumero.getText());
             }
 
+            // [CORREÇÃO OBJECT STORAGE]: Se o usuário escolheu uma nova foto durante a edição,
+            // faz o upload para o Supabase Storage e atualiza a URL no objeto Cliente antes de salvar no banco
+            if (arquivoFotoSelecionada != null) {
+                String idUsuario = String.valueOf(cliente.getId());
+                String urlFoto = SupabaseStorageService.fazerUpload(arquivoFotoSelecionada.toPath(), idUsuario);
+                cliente.setFotoPerfil(urlFoto);
+                arquivoFotoSelecionada = null;
+            }
+
             usuarioService.atualizarUsuario(cliente);
+            // [CORREÇÃO OBJECT STORAGE]: Atualiza também a instância na Sessão
+            Sessao.getInstance().iniciarSessao(cliente);
+
             AvisoUtils.exibirAvisoSucesso(containerAviso, "Perfil atualizado!");
             return true;
 
@@ -175,7 +211,8 @@ public class PerfilClienteController {
         } catch (NegocioException e) {
             AvisoUtils.exibirAvisoErro(containerAviso, e.getMessage());
         } catch (Exception e) {
-            AvisoUtils.exibirAvisoErro(containerAviso, "Erro ao salvar.");
+            AvisoUtils.exibirAvisoErro(containerAviso, "Erro ao salvar: " + e.getMessage());
+            e.printStackTrace();
         } finally {
             limparAvisos(5);
         }

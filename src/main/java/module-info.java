@@ -9,6 +9,7 @@ module br.com.washii {
     requires jbcrypt;
     requires java.datatransfer;
     requires org.kordamp.ikonli.javafx;
+     requires java.net.http;
 
     opens br.com.washii.domain.entities to javafx.base, javafx.fxml;
     opens br.com.washii.presentation.layout to javafx.fxml;

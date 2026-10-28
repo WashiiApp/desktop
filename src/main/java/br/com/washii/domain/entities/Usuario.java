@@ -71,8 +71,15 @@ public abstract class Usuario {
     public void setTipoUsuario(TipoUsuario tipo){
         this.tipoUsuario = tipo;
     }
+    private String fotoPerfil;
 
+public String getFotoPerfil() {
+    return fotoPerfil;
+}
 
+public void setFotoPerfil(String fotoPerfil) {
+    this.fotoPerfil = fotoPerfil;
+}
 
     @Override
     public boolean equals(Object o) {

@@ -28,6 +28,7 @@ public class Cliente extends Usuario{
     public void setTelefone(String telefone) {
         this.telefone = telefone;
     }
+    
 
     public void addVeiculo(Veiculo veiculo){
         veiculos.add(veiculo);
@@ -36,6 +37,9 @@ public class Cliente extends Usuario{
     public boolean removeVeiculo(Veiculo veiculo){
         return veiculos.remove(veiculo);
     }
+
+    // [CORREÇÃO OBJECT STORAGE]: Removido atributo fotoPerfil duplicado da subclasse,
+    // pois já existe e é herdado diretamente da superclasse Usuario (evitando sombreamento de atributo)
 
     public List<Veiculo> getAllVeiculos(){
         return veiculos;
